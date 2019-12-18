@@ -1,4 +1,8 @@
-
+/*
+  Ultrasonic Sensor with GSM Flood Detection
+  For DOSCST Thesis Project
+  #bumblebee
+*/
 #include <SoftwareSerial.h>
 #include <SimpleTimer.h>
 #include <ListLib.h>
@@ -6,7 +10,6 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-
 
 Adafruit_SSD1306 display = Adafruit_SSD1306(128, 32, &Wire);
 
@@ -22,6 +25,7 @@ long scanInterval = 1000;//millis
 int duration;
 
 int distance;
+int maxDistance = 50;//cm
 int readValue;
 String serialMessage;
 
@@ -51,8 +55,6 @@ void setup() {
   commandAndRead("ATS0=1", 1000, "OK");
   commandAndRead("AT+CMGF=1", 1000, "OK");
   commandAndRead("AT+CNMI=2,2,0,0,0", 1000, "OK");
-  //commandAndRead("AT+CMGS=+639488587638", 1000, "OK");
-  //sendMessage("Hi textmate :)", "+639488587638");
 }
 
 void loop() {
@@ -62,11 +64,12 @@ void loop() {
   if (Serial.available() > 0) {
     switch (Serial.read())
     {
-      case 's': sendMessage("Hi textmate :)", "+639488587638");
+      case 's': sendSMS("Hi textmate :)", "+639488587638");
         break;
       case 'r':
         commandAndRead("AT+CMGR=1 ", 1000, "OK");
         break;
+      case '$':Serial.println("Yeah");
     }
   }
   if (gsmSerial.available() > 0) {
@@ -81,10 +84,14 @@ void loop() {
     Serial.println(a);
   }
 }
+
+void readCommand(const char*[]){}
+
 void intervalCheck() {
   readValue = distance;
 }
-int  scan() {
+
+float scan() {
   // Clears the trigPin
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
@@ -115,9 +122,12 @@ void printWholeDisplay(String a) {
 }
 
 void printWholeInfo() {
-  String s = "Distance: ";
+ int nearest = ((distance*1.0)/(maxDistance*1.0))*100; 
+  String s = "Dist: ";
   s+= distance;
-  s+="cm\n\r";
+  s+="cm ";
+  s+=nearest;
+  s+="%\n\r";
   s+=serialMessage;
   printWholeDisplay(s);
 }
@@ -127,8 +137,8 @@ void initDisplay() {
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0, 0);
 }
-void sendMessage(String msg, String pn)
-{
+
+void sendSMS(String msg, String pn){
   Serial.println("Sending message");
   gsmSerial.println("AT+CMGF=1");    //Sets the GSM Module in Text Mode
   delay(1000);  // Delay of 1000 milli seconds or 1 second
@@ -139,6 +149,7 @@ void sendMessage(String msg, String pn)
   gsmSerial.println((char)26);// ASCII code of CTRL+Z
   delay(500);
 }
+
 bool commandAndRead(String command, int maxTime, char readReplay[]) {
   int countTimeCommand = 0;
   int countTrueCommand = 0;
