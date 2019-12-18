@@ -21,7 +21,7 @@ const int trigPin = 6;
 const int echoPin = 7;
 // Define event tick
 SimpleTimer timer;
-long scanInterval = 1000;//millis
+long scanInterval = 60000;//millis
 int duration;
 
 int distance;
@@ -69,7 +69,9 @@ void loop() {
       case 'r':
         commandAndRead("AT+CMGR=1 ", 1000, "OK");
         break;
-      case '$':Serial.println("Yeah");
+      case '$':
+        internalCommand(Serial.readString());
+        break;
     }
   }
   if (gsmSerial.available() > 0) {
@@ -79,13 +81,32 @@ void loop() {
     //      String title = "From: " + a.substring(9, 22);
     //       printWholeDisplay(a);
     //    }
-   // printWholeDisplay(a);
-   serialMessage = a;
+    // printWholeDisplay(a);
+    serialMessage = a;
     Serial.println(a);
   }
 }
+void internalCommand(String c) {
+  if (c.indexOf("maxdst=") >= 0) {
+    //if (c.substring(7)) {
+    String x = c.substring(7);
+    x.trim();
+    Serial.println(x);
+    maxDistance = x.toInt();
+    Serial.println("Max distance changed into " + x + "cm.");
+    //}
+  } else if ("addnum=") {
+    String x = c.substring(7);
+    x.trim();
+    char buff[x.length()];
+    x.toCharArray(buff,x.length());
+    Serial.println(x);
+    numbers.Add(buff);
+    Serial.println("Number " + x + " has been added to subscribers list.");
+  }
+}
 
-void readCommand(const char*[]){}
+void readCommand(const char*[]) {}
 
 void intervalCheck() {
   readValue = distance;
@@ -122,13 +143,13 @@ void printWholeDisplay(String a) {
 }
 
 void printWholeInfo() {
- int nearest = ((distance*1.0)/(maxDistance*1.0))*100; 
+  int nearest = ((distance * 1.0) / (maxDistance * 1.0)) * 100;
   String s = "Dist: ";
-  s+= distance;
-  s+="cm ";
-  s+=nearest;
-  s+="%\n\r";
-  s+=serialMessage;
+  s += distance;
+  s += "cm ";
+  s += nearest;
+  s += "%\n\r";
+  s += serialMessage;
   printWholeDisplay(s);
 }
 
@@ -138,7 +159,7 @@ void initDisplay() {
   display.setCursor(0, 0);
 }
 
-void sendSMS(String msg, String pn){
+void sendSMS(String msg, String pn) {
   Serial.println("Sending message");
   gsmSerial.println("AT+CMGF=1");    //Sets the GSM Module in Text Mode
   delay(1000);  // Delay of 1000 milli seconds or 1 second
