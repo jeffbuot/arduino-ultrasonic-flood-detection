@@ -1,8 +1,4 @@
-/*
-  Ultrasonic Sensor with GSM Flood Detection
-  For DOSCST Thesis Project
-  #bumblebee
-*/
+
 #include <SoftwareSerial.h>
 #include <SimpleTimer.h>
 #include <ListLib.h>
@@ -11,9 +7,11 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
+
 Adafruit_SSD1306 display = Adafruit_SSD1306(128, 32, &Wire);
-//GSM pins (TX, RX)
-SoftwareSerial gsmSerial(9, 10);
+
+SoftwareSerial gsmSerial(9, 10);//TX, RX
+
 List<char*> numbers;
 // Ultrasonic sensor pins
 const int trigPin = 6;
@@ -21,67 +19,71 @@ const int echoPin = 7;
 // Define event tick
 SimpleTimer timer;
 long scanInterval = 1000;//millis
-int distance;
 int duration;
-String readValue;
+
+int distance;
+int readValue;
+String serialMessage;
 
 void setup() {
-  Serial.println("Setting up..");
+  Serial.begin(9600); Serial.begin(9600);   // Setting the baud rate of Serial Monitor (Arduino)
+  gsmSerial.begin(9600);   // Setting the baud rate of GSM Module
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // Address 0x3C for 128x32
+  //Ultrasonic setup
   pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
   pinMode(echoPin, INPUT); // Sets the echoPin as an Input
-  gsmSerial.begin(9600);
-  Serial.begin(9600); // Starts the serial communication  // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // Address 0x3C for 128x32
 
-  timer.setInterval(scanInterval, checkDistanceValue);
+  timer.setInterval(scanInterval, intervalCheck);
+  display.display();
 
-  initDisplay();
-  initGsm();
   //The first number added here is considered as the admin number
   numbers.Add("+639488587638");
+
+  delay(1000);
+  initDisplay();
+  //gsmSerial.println("AT+CGPSPWR=1");
+  //  gsmSerial.println("ATS0=1");
+  if (!commandAndRead("AT+CGPSPWR=1", 1000, "OK")) {
+    serialMessage = "Device is turned off.";
+  } else {
+    serialMessage = "Device is turned on.";
+  }
+  commandAndRead("ATS0=1", 1000, "OK");
+  commandAndRead("AT+CMGF=1", 1000, "OK");
+  commandAndRead("AT+CNMI=2,2,0,0,0", 1000, "OK");
+  //commandAndRead("AT+CMGS=+639488587638", 1000, "OK");
+  //sendMessage("Hi textmate :)", "+639488587638");
 }
 
 void loop() {
   scanDistance();
+  printWholeInfo();
   timer.run();
-}
-
-void initGsm() {
-  gsmSerial.println("AT+CGPSPWR=1");
-  delay(100);
-  gsmSerial.println("ATS0=1");
-
-}
-
-void initDisplay() {
-  // Show image buffer on the display hardware.
-  // Since the buffer is intialized with an Adafruit splashscreen
-  // internally, this will display the splashscreen.
-  display.display();
-  delay(500);
-  // Clear the buffer.
-  display.clearDisplay();
-  display.display();
-  // text display tests
-  display.setTextSize(1);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-}
-
-void printDisplay(String a) {
-  display.clearDisplay();
-  display.setCursor(0, 0);
-  display.println("Sensor Test");
-  display.println(a);
-  display.println("Read Val: "+readValue);
-  display.setCursor(0, 0);
-  display.display(); // actually display all of the above
-
-}
-void checkDistanceValue(){
-  readValue = distance;
+  if (Serial.available() > 0) {
+    switch (Serial.read())
+    {
+      case 's': sendMessage("Hi textmate :)", "+639488587638");
+        break;
+      case 'r':
+        commandAndRead("AT+CMGR=1 ", 1000, "OK");
+        break;
+    }
   }
-
+  if (gsmSerial.available() > 0) {
+    String a = gsmSerial.readString();
+    //    if (a.substring(0, 6) == "\r\n+CMT") {
+    //      String msg = a.substring(51);
+    //      String title = "From: " + a.substring(9, 22);
+    //       printWholeDisplay(a);
+    //    }
+   // printWholeDisplay(a);
+   serialMessage = a;
+    Serial.println(a);
+  }
+}
+void intervalCheck() {
+  readValue = distance;
+}
 int  scan() {
   // Clears the trigPin
   digitalWrite(trigPin, LOW);
@@ -99,9 +101,62 @@ int  scan() {
 
 void scanDistance() {
   distance = scan();
-  // Prints the distance on the Serial Monitor
-  String m = "Distance: ";
-  m += distance;
-  m += "cm";
-  printDisplay(m);
+}
+
+void initGsm() {
+}
+
+void printWholeDisplay(String a) {
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.println(a);
+  display.setCursor(0, 0);
+  display.display(); // actually display all of the above
+}
+
+void printWholeInfo() {
+  String s = "Distance: ";
+  s+= distance;
+  s+="cm\n\r";
+  s+=serialMessage;
+  printWholeDisplay(s);
+}
+
+void initDisplay() {
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+}
+void sendMessage(String msg, String pn)
+{
+  Serial.println("Sending message");
+  gsmSerial.println("AT+CMGF=1");    //Sets the GSM Module in Text Mode
+  delay(1000);  // Delay of 1000 milli seconds or 1 second
+  gsmSerial.println("AT+CMGS=\"" + pn + "\"");
+  delay(500);
+  gsmSerial.println(msg);// The SMS text you want to send
+  delay(100);
+  gsmSerial.println((char)26);// ASCII code of CTRL+Z
+  delay(500);
+}
+bool commandAndRead(String command, int maxTime, char readReplay[]) {
+  int countTimeCommand = 0;
+  int countTrueCommand = 0;
+  boolean found = false;
+  Serial.println("Executing: " + command);
+  gsmSerial.print(command);
+  while (countTimeCommand < (maxTime * 1)) {
+    if (gsmSerial.available() > 0) {
+      String a = gsmSerial.readString();
+      if (a.indexOf(readReplay)) //ok
+      {
+        found = true;
+        break;
+      }
+    }
+    delay(1);
+    countTimeCommand++;
+  }
+  Serial.println(found ? "Okay" : "Failed");
+  return found;
 }
