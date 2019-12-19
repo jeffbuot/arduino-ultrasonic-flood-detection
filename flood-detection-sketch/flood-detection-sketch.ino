@@ -28,6 +28,7 @@ int distance;
 int maxDistance = 50;//cm
 int readValue;
 String serialMessage;
+String adminNum= "+639488587638";
 
 void setup() {
   Serial.begin(9600); Serial.begin(9600);   // Setting the baud rate of Serial Monitor (Arduino)
@@ -64,31 +65,32 @@ void loop() {
   if (Serial.available() > 0) {
     switch (Serial.read())
     {
-      case 's': sendSMS("Hi textmate :)", "+639488587638");
+      case '$':
+        internalCommand(Serial.readString());
+        break;
+      case 's':
+        int percentage = ((distance * 1.0) / (maxDistance * 1.0)) * 100;
+        if (percentage >= 75) {
+          sendSMS( "Alert! water level is very high.(75% or more)", adminNum);
+        } else if (percentage >= 50 ) {
+          sendSMS( "Alert! water level is high.(50%)", adminNum);
+        } else if (percentage >= 25) {
+          sendSMS("Warning, water level has increased to 25%.", adminNum);
+        }
         break;
       case 'r':
         commandAndRead("AT+CMGR=1 ", 1000, "OK");
-        break;
-      case '$':
-        internalCommand(Serial.readString());
         break;
     }
   }
   if (gsmSerial.available() > 0) {
     String a = gsmSerial.readString();
-    //    if (a.substring(0, 6) == "\r\n+CMT") {
-    //      String msg = a.substring(51);
-    //      String title = "From: " + a.substring(9, 22);
-    //       printWholeDisplay(a);
-    //    }
-    // printWholeDisplay(a);
     serialMessage = a;
     Serial.println(a);
   }
 }
 void internalCommand(String c) {
   if (c.indexOf("maxdst=") >= 0) {
-    //if (c.substring(7)) {
     String x = c.substring(7);
     x.trim();
     Serial.println(x);
@@ -99,7 +101,7 @@ void internalCommand(String c) {
     String x = c.substring(7);
     x.trim();
     char buff[x.length()];
-    x.toCharArray(buff,x.length());
+    x.toCharArray(buff, x.length());
     Serial.println(x);
     numbers.Add(buff);
     Serial.println("Number " + x + " has been added to subscribers list.");
